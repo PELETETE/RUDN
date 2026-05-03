@@ -2,7 +2,6 @@
 
 ## Résolution d'équations différentielles ordinaires du second ordre par méthodes de collocation de Tchebychev
 
----
 
 ## Introduction : Fondements des méthodes spectrales
 
@@ -10,7 +9,6 @@ Les méthodes spectrales constituent une classe avancée de techniques numériqu
 
 Le choix de la base de fonctions est déterminant. Les critères essentiels incluent la rapidité de convergence, la facilité de dérivation et d’intégration, l’orthogonalité, et la complétude. Pour les problèmes définis sur un intervalle borné et non périodiques, les polynômes de Tchebychev constituent un choix privilégié. Leur distribution des points de collocation, plus dense aux bords, minimise l’erreur d’interpolation et évite le phénomène de Runge, qui affecte les interpolations polynomiales sur des points équidistants.
 
----
 
 ## Section 1 : Méthodes de calcul des coefficients spectraux
 
@@ -32,7 +30,7 @@ Cette approche exige que chaque fonction de base satisfasse individuellement les
 
 La méthode Tau est une extension de Galerkin pour les bases qui ne satisfont pas les conditions aux limites. Un terme correcteur est ajouté au résidu, et les dernières équations du système sont remplacées par les conditions aux limites. Cette approche travaille naturellement dans l’espace des coefficients, mais sa mise en œuvre est plus délicate et son extension aux problèmes non linéaires est difficile.
 
-### 1.3. Méthode de collocation (pseudospectrale)
+### 1.3. Méthode de collocation 
 
 La méthode de collocation est la plus répandue en pratique. On exige que le résidu s’annule en un ensemble de points spécifiques, appelés nœuds de collocation :
 
@@ -40,15 +38,6 @@ $$R(x_j) = 0, \quad j = 0, \dots, N$$
 
 Cela revient à utiliser des fonctions de test de type Dirac. Pour une équation du second ordre, la discrétisation conduit à un système algébrique impliquant les matrices de différenciation. Cette approche présente l’avantage majeur de traiter directement les non‑linéarités par évaluation ponctuelle, sans calcul d’intégrales complexes.
 
-### 1.4. Synthèse comparative
-
-| Méthode | Inconnues | Base de test | Structure matricielle | Non‑linéarités |
-|---------|-----------|--------------|------------------------|----------------|
-| Galerkin | Coefficients | $\phi_k$ (adaptée) | Bande | Difficile |
-| Tau | Coefficients | $T_k$ | Presque bande | Très difficile |
-| Collocation | Valeurs nodales | $\delta(x-x_j)$ | Pleine | Très facile |
-
----
 
 ## Section 2 : Propriétés des polynômes de Tchebychev
 
@@ -87,7 +76,6 @@ $$x_j = \cos\left(\frac{\pi j}{N}\right), \quad j = 0, 1, \dots, N$$
 
 Ces nœuds incluent les bornes du domaine et présentent une densité accrue aux extrémités, ce qui garantit la stabilité et la précision de l’interpolation.
 
----
 
 ## Section 3 : Opérateurs spectraux et résolution d’EDO
 
@@ -203,24 +191,6 @@ def bratu_nonlinear(N, lambda_param):
     return x, y
 ```
 
-### 3.6. Équation de Duffing
-
-L’équation de Duffing avec non linéarité cubique :
-
-$$y''(x) + \omega^2 y(x) + \varepsilon y^3(x) = 0, \quad y(-1) = 0, \quad y(1) = 1$$
-
-est résolue de manière analogue, avec une jacobienne tenant compte de la dérivée $3\varepsilon y^2$.
-
-### 3.7. Problème mixte avec conditions de Neumann
-
-Pour une équation du type :
-
-$$y''(x) + y'(x) + y^2(x) = \cos(\pi x), \quad y'(-1) = 0, \quad y(1) = 0$$
-
-la jacobienne inclut la contribution de la dérivée première et de la non linéarité quadratique. La condition de Neumann est imposée en remplaçant la ligne correspondante par celle de la matrice $D$.
-
----
-
 ## Section 4 : Analyse de convergence
 
 ### 4.1. Convergence spectrale
@@ -237,7 +207,6 @@ La méthode de collocation de Tchebychev converge exponentiellement pour les sol
 
 Bien que la collocation utilise des matrices pleines, le faible nombre de points nécessaire la rend souvent plus efficace globalement pour les problèmes nécessitant une haute précision.
 
----
 
 ## Conclusion
 
@@ -252,7 +221,6 @@ La comparaison avec les méthodes de Galerkin et Tau montre que la collocation e
 
 Parmi les perspectives, on peut citer l’extension aux systèmes d’équations, aux équations aux dérivées partielles par produit tensoriel, l’utilisation de transformées rapides pour réduire la complexité, et la continuation pour suivre des branches de solutions en présence de bifurcations.
 
----
 
 ## Références
 
