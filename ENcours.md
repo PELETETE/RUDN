@@ -1,4 +1,4 @@
-# Thème : Résolution d'ODU du 2nd ordre par 
+# Thème: Решение обыкновенных дифференциальных уравнений 2-го порядка методами Чебышевской коллокации. 
 
 ## Introduction
 La résolution numérique des équations différentielles ordinaires (EDO) du second ordre à valeurs aux limites constitue un pilier fondamental de la modélisation en mécanique des fluides, en astrophysique et en ingénierie des structures. Alors que les méthodes de discrétisation locale, telles que les différences finies ou les éléments finis, sont largement plébiscitées pour leur flexibilité géométrique, elles souffrent intrinsèquement d'une convergence de type polynomiale, limitant leur efficacité dans les traveaux exigeant une précision extrême.
@@ -7,51 +7,392 @@ L'enjeu majeur de cette étude réside dans l'exploration du formalisme aux prob
 À travers la validation rigoureuse d'un solveur générique, nous confrontons cette méthode a quelques equations lineaires et non lineaires surtout au problème de Bratu — archétype des instabilités non linéaires — afin d'en évaluer la robustesse, la sensibilité aux conditions aux limites de type Neumann, et la validité statistique du résidu résiduel.
 
 
-## PARTIE I : Validation du Socle Linéaire (Les Fondations)
+## PARTIE I : Choix de la Méthode De Collocation et Validation du Socle Linéaire
 
-Avant de s'attaquer à la non-linéarité, il est impératif de certifier que la brique de base – la dérivation spectrale – est exacte à la précision machine près.
+### 1.1. Critères de choix de la base spectrale
 
-### 1. Discrétisation de l'Espace
+Le choix de la base de fonctions est crucial et repose sur plusieurs critères :
+
+- **Convergence rapide** : Une bonne base doit assurer une convergence exponentielle (dite « spectrale ») avec l'augmentation du nombre de termes.
+- **Simplicité de différentiation/intégration** : Les opérateurs différentiels doivent être faciles à appliquer aux fonctions de base.
+- **Orthogonalité** : Une base orthogonale simplifie considérablement les calculs et améliore le conditionnement.
+- **Complétude** : Toute fonction raisonnable doit pouvoir être approchée dans cette base.
+
+### 1.2. Problèmes non périodiques et choix des polynômes de Chebyshev
+
+Pour les problèmes périodiques, les séries de Fourier sont un choix naturel. Cependant, pour les problèmes non périodiques sur un intervalle fini, l'utilisation de points équidistants avec des polynômes mène au **phénomène de Runge** : des oscillations divergentes apparaissent aux bords de l'intervalle.
+
+**Les polynômes de Chebyshev** offrent une solution élégante à ce problème. Leur répartition particulière des racines (plus dense près des bords) minimise l'erreur d'interpolation et évite le phénomène de Runge. Cette propriété, appelée **minimax**, garantit que l'erreur maximale est aussi petite que possible.
+
+### 1.3. Méthodes de calcul des coefficients spectraux
+
+L'objectif fondamental des méthodes spectrales est de transformer une équation différentielle continue en un système algébrique discret. Pour une équation $\mathcal{L}u = f$ sur un domaine $\Omega$, on approxime $u$ par une somme finie :
+
+$$ u_N(x) = \sum_{k=0}^{N} \hat{u}_k \phi_k(x) \tag{1} $$
+
+Le résidu est défini par $R(x; \hat{u}) = \mathcal{L}u_N - f$. Il existe différentes stratégies pour minimiser ce résidu.
+
+### 1.4. Méthode de Galerkin
+
+La méthode de Galerkin est l'approche mathématiquement la plus « pure ». On exige que le résidu soit orthogonal à chaque fonction de base :
+
+$$ \langle R, \phi_j \rangle = \int_{\Omega} R(x) \phi_j(x) w(x) dx = 0 \quad \text{pour } j = 0, \dots, N \tag{2} $$
+
+Cette approche nécessite que chaque fonction de base satisfasse individuellement les conditions aux limites. Elle conduit à des matrices symétriques et bien conditionnées, mais la construction d'une base appropriée peut être complexe, surtout pour des conditions aux limites non standard.
+
+**Condition importante** : Chaque fonction de base $\phi_k$ doit individuellement satisfaire les conditions aux limites. Cette méthode purement mathématique nous permet d'obtenir des matrices symétriques et bien conditionnées. Cependant, elle complique la construction d'une base adaptée aux conditions aux limites et, par conséquent, les problèmes non linéaires sont très difficiles à traiter.
+
+#### 1.4.1. Principe général
+
+La méthode de Galerkin est une méthode de projection dans laquelle la solution approchée $u_N(x)$ est cherchée comme combinaison linéaire de fonctions de base $\phi_k(x)$, et le résidu est forcé à être orthogonal à l'espace de ces fonctions de base.
+
+Considérons une équation différentielle générale du second ordre :
+
+$$ \mathcal{L}u = f(x), \quad x \in [-1, 1] \tag{3} $$
+
+avec les conditions aux limites :
+
+$$ u(-1) = \alpha, \quad u(1) = \beta \tag{4} $$
+
+On approxime la solution par :
+
+$$ u_N(x) = \sum_{k=0}^{N} \hat{u}_k \phi_k(x) \tag{5} $$
+
+où $\phi_k(x)$ sont les fonctions de base choisies.
+
+Le résidu est défini par :
+
+$$ R_N(x) = \mathcal{L}u_N(x) - f(x) \tag{6} $$
+
+La méthode de Galerkin exige l'orthogonalité du résidu à chaque fonction de base :
+
+$$ \int_{-1}^{1} R_N(x) \phi_j(x) w(x) \, dx = 0, \quad j = 0, 1, \dots, N \tag{7} $$
+
+où $w(x)$ est une fonction de poids (pour les polynômes de Chebyshev $w(x) = 1/\sqrt{1-x^2}$).
+
+#### 1.4.2. Base adaptée aux conditions aux limites
+
+Pour les polynômes de Chebyshev, un problème critique apparaît : les polynômes $T_k(x)$ ne satisfont pas les conditions aux limites : $T_k(\pm 1) \neq 0$ pour $k$ pair.
+
+Il est donc nécessaire de construire une **base adaptée** qui satisfait automatiquement les conditions aux limites homogènes $u(\pm 1) = 0$.
+
+#### 1.4.3. Base pour des conditions de Dirichlet homogènes
+
+Pour $u(-1) = u(1) = 0$, on utilise :
+
+$$ \phi_k(x) = T_{k+2}(x) - T_k(x), \quad k = 0, 1, \dots, N-2 \tag{8} $$
+
+**Propriété** :
+$$ \phi_k(1) = T_{k+2}(1) - T_k(1) = 1 - 1 = 0 $$
+$$ \phi_k(-1) = T_{k+2}(-1) - T_k(-1) = (-1)^{k+2} - (-1)^k = (-1)^k - (-1)^k = 0 $$
+
+La solution approchée s'écrit alors :
+
+$$ u_N(x) = \sum_{k=0}^{N-2} \hat{u}_k \left[ T_{k+2}(x) - T_k(x) \right] \tag{9} $$
+
+#### 1.4.4. Base pour des conditions de Dirichlet non homogènes
+
+Pour $u(-1) = \alpha$, $u(1) = \beta$, on effectue la décomposition :
+
+$$ u_N(x) = u_0(x) + \tilde{u}_N(x) \tag{10} $$
+
+où $u_0(x)$ est une fonction satisfaisant les conditions aux limites, par exemple une droite :
+
+$$ u_0(x) = \frac{\alpha + \beta}{2} + \frac{\beta - \alpha}{2}x \tag{11} $$
+
+et $\tilde{u}_N(x)$ est la solution de l'équation homogène avec $\tilde{u}_N(\pm 1) = 0$, décomposée dans la base adaptée.
+
+#### 1.4.5. Formulation variationnelle
+
+Considérons l'EDO :
+
+$$ u''(x) + p(x)u'(x) + q(x)u(x) = f(x) \tag{12} $$
+
+En substituant $u = u_N = \sum_{k=0}^{M} \hat{u}_k \phi_k(x)$ (où $M = N-2$), on obtient :
+
+$$ \sum_{k=0}^{M} \hat{u}_k \left[ \phi_k''(x) + p(x)\phi_k'(x) + q(x)\phi_k(x) \right] = f(x) + R_N(x) \tag{13} $$
+
+Les équations de Galerkin s'écrivent :
+
+$$ \sum_{k=0}^{M} \hat{u}_k \int_{-1}^{1} \left[ \phi_k''(x) + p(x)\phi_k'(x) + q(x)\phi_k(x) \right] \phi_j(x) w(x) \, dx = \int_{-1}^{1} f(x) \phi_j(x) w(x) \, dx \tag{14} $$
+
+pour $j = 0, 1, \dots, M$.
+
+Sous forme matricielle :
+
+$$ \mathbf{A} \hat{\mathbf{u}} = \mathbf{b} \tag{15} $$
+
+où :
+
+$$ A_{jk} = \int_{-1}^{1} \left[ \phi_k''(x) + p(x)\phi_k'(x) + q(x)\phi_k(x) \right] \phi_j(x) w(x) \, dx \tag{16} $$
+$$ b_j = \int_{-1}^{1} f(x) \phi_j(x) w(x) \, dx \tag{17} $$
+
+#### 1.4.6. Intégration par parties pour la symétrie
+
+Pour obtenir des matrices symétriques (propriété souhaitable), on intègre par parties le terme du second ordre :
+
+$$ \int_{-1}^{1} \phi_k''(x) \phi_j(x) w(x) \, dx = \left[ \phi_k'(x) \phi_j(x) w(x) \right]_{-1}^{1} - \int_{-1}^{1} \phi_k'(x) \left[ \phi_j'(x) w(x) + \phi_j(x) w'(x) \right] dx \tag{18} $$
+
+Pour le poids de Chebyshev $w(x) = 1/\sqrt{1-x^2}$, les termes de bord s'annulent.
+
+La forme faible devient :
+
+$$ \int_{-1}^{1} \phi_k'(x) \phi_j'(x) w(x) \, dx - \int_{-1}^{1} \phi_k'(x) \phi_j(x) w'(x) \, dx + \int_{-1}^{1} \left[ p(x)\phi_k'(x) + q(x)\phi_k(x) \right] \phi_j(x) w(x) \, dx \tag{19} $$
+
+#### 1.4.7. Calcul pratique des intégrales par quadrature de Gauss-Chebyshev
+
+Les intégrales sont calculées à l'aide de la quadrature de Gauss-Chebyshev. Pour le poids $w(x) = 1/\sqrt{1-x^2}$, les nœuds et poids de la quadrature sont :
+
+**Nœuds de Gauss-Chebyshev** (racines de $T_{M+1}(x)$) :
+
+$$ x_i = \cos\left( \frac{(2i+1)\pi}{2(M+1)} \right), \quad i = 0, \dots, M \tag{20} $$
+
+**Poids** :
+
+$$ w_i = \frac{\pi}{M+1} \tag{21} $$
+
+L'intégrale est approchée par :
+
+$$ \int_{-1}^{1} g(x) \frac{dx}{\sqrt{1-x^2}} \approx \sum_{i=0}^{M} g(x_i) \frac{\pi}{M+1} \tag{22} $$
+
+#### 1.4.8. Cas particulier : opérateur $u'' + \lambda u$
+
+Pour l'équation modèle $u'' + \lambda u = f$ avec $u(\pm 1) = 0$, la matrice de Galerkin devient :
+
+$$ A_{jk} = \int_{-1}^{1} \phi_k''(x) \phi_j(x) w(x) \, dx + \lambda \int_{-1}^{1} \phi_k(x) \phi_j(x) w(x) \, dx \tag{23} $$
+
+Après intégration par parties :
+
+$$ A_{jk} = -\int_{-1}^{1} \phi_k'(x) \phi_j'(x) w(x) \, dx + \lambda \int_{-1}^{1} \phi_k(x) \phi_j(x) w(x) \, dx \tag{24} $$
+
+La matrice obtenue est symétrique.
+
+#### 1.4.9. Lien entre les coefficients et les valeurs nodales
+
+Il est parfois utile de passer des coefficients spectraux $\hat{u}_k$ aux valeurs nodales $u(x_i)$. La matrice de transition est donnée par :
+
+$$ u(x_i) = \sum_{k=0}^{M} \hat{u}_k \phi_k(x_i) \tag{25} $$
+
+ou sous forme matricielle :
+
+$$ \mathbf{u} = \mathbf{\Phi} \hat{\mathbf{u}} \tag{26} $$
+
+où $\Phi_{ik} = \phi_k(x_i)$. La transformation inverse (si la matrice est inversible) permet de retrouver la solution en tout point.
+
+#### 1.4.10. Algorithme de résolution
+
+1.  **Choix de la base** : Construire $\phi_k(x) = T_{k+2}(x) - T_k(x)$ pour $k = 0, \dots, N-2$
+2.  **Discrétisation** : Choisir $M+1$ nœuds de quadrature de Gauss-Chebyshev
+3.  **Construction de la matrice** : Calculer $A_{jk}$ par quadrature
+    $$ A_{jk} = \sum_{i=0}^{M} \left[ \phi_k''(x_i) + p(x_i)\phi_k'(x_i) + q(x_i)\phi_k(x_i) \right] \phi_j(x_i) w_i \tag{27} $$
+4.  **Construction du second membre** : Calculer $b_j = \sum_{i=0}^{M} f(x_i) \phi_j(x_i) w_i$
+5.  **Résolution** : Résoudre $\mathbf{A} \hat{\mathbf{u}} = \mathbf{b}$ pour obtenir les coefficients $\hat{u}_k$
+6.  **Reconstruction** : Calculer $u_N(x)$ en tout point par $u_N(x) = \sum_{k=0}^{M} \hat{u}_k \phi_k(x)$
+
+#### 1.4.11. Avantages et inconvénients de la méthode de Galerkin
+
+- **Avantages** : Matrice symétrique pour les opérateurs auto-adjoints, meilleur conditionnement par rapport à la collocation, convergence spectrale garantie, base adaptée aux conditions aux limites.
+- **Inconvénients** : Nécessité de construire une base adaptée (différente selon les conditions aux limites), calcul potentiellement coûteux des intégrales, travail complexe avec les non-linéarités (nécessite des convolutions), difficulté à traiter rapidement les coefficients variables.
+
+### 1.5. Méthode de Tau-Lanczos
+
+La méthode de Tau est une extension de la méthode de Galerkin pour des bases qui ne satisfont pas les conditions aux limites. Un terme correcteur (« Tau ») est ajouté au résidu, et les dernières équations du système sont remplacées par les conditions aux limites. Cette approche fonctionne naturellement dans l'espace des coefficients, mais son implémentation est plus complexe et l'extension aux problèmes non linéaires est difficile. Autrement dit, la méthode de Tau permet :
+
+- De travailler directement dans l'espace des coefficients.
+- De ne pas construire de base spéciale.
+
+Mais elle ne permet pas :
+
+- Une implémentation simple (implémentation plus complexe).
+- De traiter facilement les non-linéarités (les convolutions dans l'espace spectral sont extrêmement complexes).
+
+#### 1.5.1. Principe général
+
+La méthode de Tau, introduite par Lanczos, est une extension de la méthode de Galerkin permettant d'utiliser une base de fonctions qui ne satisfont pas individuellement les conditions aux limites. L'idée principale est d'ajouter un terme correcteur polynomial (« tau ») au résidu pour compenser la non-satisfaction des conditions aux limites.
+
+Considérons une équation différentielle linéaire du second ordre :
+
+$$ \mathcal{L} u(x) = f(x), \quad x \in [-1, 1] \tag{28} $$
+
+avec les conditions aux limites :
+
+$$ u(-1) = \alpha, \quad u(1) = \beta \tag{29} $$
+
+#### 1.5.2. Développement en série de Chebyshev
+
+La solution approchée est cherchée sous la forme d'une série tronquée de polynômes de Chebyshev :
+
+$$ u_N(x) = \sum_{k=0}^{N} \hat{u}_k T_k(x) \tag{30} $$
+
+où $T_k(x)$ sont les polynômes de Chebyshev de première espèce, définis par $T_k(x) = \cos(k \arccos x)$.
+
+#### 1.5.3. Formulation du résidu
+
+Le résidu de l'équation différentielle est :
+
+$$ R(x) = \mathcal{L} u_N(x) - f(x) \tag{31} $$
+
+L'idée de Lanczos est d'ajouter un terme correcteur polynomial de degré $N$ ou $N+1$ pour pouvoir satisfaire les conditions aux limites. On écrit :
+
+$$ \mathcal{L} u_N(x) - f(x) = \tau_1 \psi_1(x) + \tau_2 \psi_2(x) + \cdots \tag{32} $$
+
+où $\psi_i(x)$ sont des polynômes de degré élevé (généralement $T_N(x)$ et $T_{N-1}(x)$).
+
+#### 1.5.4. Projection et orthogonalité
+
+On projette l'équation modifiée sur les $N+1$ polynômes de base $T_j(x)$ pour $j = 0, \dots, N$ :
+
+$$ \int_{-1}^1 [\mathcal{L} u_N(x) - f(x)] T_j(x) \frac{dx}{\sqrt{1-x^2}} = \int_{-1}^1 \left[\sum_{i=1}^{m} \tau_i \psi_i(x)\right] T_j(x) \frac{dx}{\sqrt{1-x^2}} \tag{33} $$
+
+En utilisant l'orthogonalité des polynômes de Chebyshev :
+
+$$ \int_{-1}^1 T_j(x) T_k(x) \frac{dx}{\sqrt{1-x^2}} = 
+\begin{cases}
+0 & j \neq k \\
+\pi & j = k = 0 \\
+\pi/2 & j = k \neq 0
+\end{cases} \tag{34} $$
+
+#### 1.5.5. Système d'équations
+
+Pour un opérateur linéaire $\mathcal{L}$ du second ordre, l'application de $\mathcal{L}$ aux polynômes de Chebyshev s'exprime via des relations de récurrence. On obtient un système linéaire de $N+1$ équations pour les coefficients $\hat{u}_k$ et les paramètres $\tau_i$ :
+
+$$ \sum_{k=0}^{N} \hat{u}_k \langle \mathcal{L} T_k, T_j \rangle - \langle f, T_j \rangle = \sum_{i=1}^{m} \tau_i \langle \psi_i, T_j \rangle, \quad j = 0, \dots, N \tag{35} $$
+
+où $\langle \cdot, \cdot \rangle$ désigne le produit scalaire avec le poids $w(x) = 1/\sqrt{1-x^2}$.
+
+#### 1.5.6. Ajout des conditions aux limites
+
+Les $N+1$ équations de projection sont modifiées : on remplace les $m$ dernières équations (correspondant aux plus hauts degrés) par les conditions aux limites.
+
+Pour un problème du second ordre avec deux conditions aux limites, on utilise généralement $m=2$ termes correcteurs. Les conditions aux limites s'écrivent :
+
+$$ u_N(-1) = \sum_{k=0}^{N} \hat{u}_k T_k(-1) = \alpha \tag{36} $$
+$$ u_N(1) = \sum_{k=0}^{N} \hat{u}_k T_k(1) = \beta \tag{37} $$
+
+En utilisant $T_k(1) = 1$ et $T_k(-1) = (-1)^k$, on obtient :
+
+$$ \sum_{k=0}^{N} \hat{u}_k = \beta \tag{38} $$
+$$ \sum_{k=0}^{N} (-1)^k \hat{u}_k = \alpha \tag{39} $$
+
+#### 1.5.7. Structure du système final
+
+Le système complet s'écrit sous forme matricielle :
+
+$$ \begin{bmatrix}
+A_{0,0} & A_{0,1} & \cdots & A_{0,N} & -\langle \psi_1, T_0 \rangle & -\langle \psi_2, T_0 \rangle \\
+A_{1,0} & A_{1,1} & \cdots & A_{1,N} & -\langle \psi_1, T_1 \rangle & -\langle \psi_2, T_1 \rangle \\
+\vdots & \vdots & \ddots & \vdots & \vdots & \vdots \\
+A_{N-2,0} & A_{N-2,1} & \cdots & A_{N-2,N} & -\langle \psi_1, T_{N-2} \rangle & -\langle \psi_2, T_{N-2} \rangle \\
+1 & 1 & \cdots & 1 & 0 & 0 \\
+(-1)^0 & (-1)^1 & \cdots & (-1)^N & 0 & 0
+\end{bmatrix}
+\begin{bmatrix}
+\hat{u}_0 \\ \hat{u}_1 \\ \vdots \\ \hat{u}_N \\ \tau_1 \\ \tau_2
+\end{bmatrix}
+=
+\begin{bmatrix}
+\langle f, T_0 \rangle \\
+\langle f, T_1 \rangle \\
+\vdots \\
+\langle f, T_{N-2} \rangle \\
+\beta \\
+\alpha
+\end{bmatrix} \tag{40} $$
+
+où $A_{j,k} = \langle \mathcal{L} T_k, T_j \rangle$.
+
+#### 1.5.8. Choix des polynômes correcteurs
+
+Les polynômes $\psi_i$ sont généralement choisis comme les polynômes de Chebyshev de plus haut degré :
+
+$$ \psi_1(x) = T_N(x), \quad \psi_2(x) = T_{N-1}(x) \tag{41} $$
+
+Avec ce choix, les produits scalaires $\langle \psi_i, T_j \rangle$ sont nuls pour $j < N-1$ grâce à l'orthogonalité, ce qui simplifie la structure du système.
+
+#### 1.5.9. Avantages et inconvénients de la méthode de Tau
+
+| Aspect | Caractéristique |
+|--------|----------------|
+| **Avantages** | Travail direct dans l'espace spectral, pas besoin de construire une base spéciale, matrice presque bande |
+| **Inconvénients** | Travail complexe avec les non-linéarités, nécessité de calculer des intégrales pour les produits scalaires |
+
+### 1.6. Méthode de Collocation (Méthode Pseudo-spectrale)
+
+La méthode de collocation est la plus répandue en pratique. On exige que le résidu s'annule en un ensemble de points spécifiques, appelés nœuds de collocation :
+
+$$ R(x_j) = 0 \quad \text{pour } j = 0, \dots, N \tag{42} $$
+
+Cela équivaut à utiliser des fonctions de test de type Dirac $\delta(x - x_j)$. Pour une équation du second ordre, la discrétisation conduit à un système algébrique incluant des matrices de différentiation. Cette approche a l'avantage important de travailler directement avec les non-linéarités par un calcul point par point, sans intégrales complexes.
+
+Pour une EDO non linéaire du second ordre :
+
+$$ y''(x) = f(x, y, y') \tag{43} $$
+
+la discrétisation donne un système non linéaire :
+
+$$ D^2 \mathbf{y} = \mathbf{f}(x, \mathbf{y}, D\mathbf{y}) \tag{44} $$
+
+**Avantages décisifs pour les non-linéarités :**
+- Pas besoin de calculer des intégrales complexes.
+- Les non-linéarités sont simplement calculées aux nœuds.
+- S'adapte naturellement à la méthode de Newton.
+- Implémentation directe dans l'espace physique.
+
+### 1.7. Discrétisation de l'Espace pour la Collocation
+
 Le domaine de calcul est l'intervalle canonique $[-1, 1]$. On le discrétise à l'aide des $N+1$ nœuds de **Gauss-Lobatto** :
 
-$$ x_j = \cos\left(\frac{\pi j}{N}\right), \quad j = 0, 1, \dots, N \tag{1} $$
+$$ x_j = \cos\left(\frac{\pi j}{N}\right), \quad j = 0, 1, \dots, N \tag{45} $$
 
 *Propriété fondamentale :* Ces points s'accumulent près des bords avec une densité proportionnelle à $1/\sqrt{1-x^2}$. C'est cette distribution qui élimine le phénomène de Runge et autorise l'utilisation de polynômes d'interpolation de degré $N$ très élevé.
 
 Si le problème physique est défini sur un intervalle quelconque $[a, b]$, un simple mapping affine est appliqué :
 
-$$ x \in [-1, 1] \quad \longmapsto \quad \tilde{x} = a + \frac{b-a}{2}(x+1) \tag{2} $$
+$$ x \in [-1, 1] \quad \longmapsto \quad \tilde{x} = a + \frac{b-a}{2}(x+1) \tag{46} $$
 
 Les matrices de dérivation sont alors mises à l'échelle par le facteur $\frac{2}{b-a}$.
 
-### 2. Opérateurs Différentiels
+### 1.8. Opérateurs Différentiels pour la Collocation
+
 La matrice de différenciation $D$ (taille $(N+1) \times (N+1)$) est construite explicitement. Pour $N=3$, c'est une petite matrice pleine ; pour $N=50$, c'est une matrice dense qui contient toute l'information sur les dérivées. L'algorithme de Trefethen (formules barycentriques) garantit sa stabilité numérique :
 
-$$ \mathbf{y}' = D \mathbf{y}, \qquad \mathbf{y}'' = D^2 \mathbf{y} \tag{3} $$
+$$ \mathbf{y}' = D \mathbf{y}, \qquad \mathbf{y}'' = D^2 \mathbf{y} \tag{47} $$
 
 *Point technique :* La diagonale de $D$ est calculée par $D_{ii} = -\sum_{j \neq i} D_{ij}$, une condition nécessaire pour que la dérivée d'une fonction constante soit exactement nulle.
 
-### 3. Banc d'essai Linéaire
+### 1.9. Banc d'essai Linéaire et Validation Analytique
+
 On teste le solveur sur le problème-modèle de l'oscillateur harmonique forcé :
 
-$$ y''(x) + k^2 y(x) = f(x), \quad x \in [-1, 1] \tag{4} $$
+$$ y''(x) + k^2 y(x) = f(x), \quad x \in [-1, 1] \tag{48} $$
 
 avec des conditions aux limites de Dirichlet $y(-1)=\alpha$, $y(1)=\beta$.
 Le système discret s'écrit :
 
-$$ \underbrace{\left( D^2 + k^2 I \right)}_{A} \mathbf{y} = \mathbf{f} \tag{5} $$
+$$ \underbrace{\left( D^2 + k^2 I \right)}_{A} \mathbf{y} = \mathbf{f} \tag{49} $$
 
 On remplace les lignes 0 et $N$ de $A$ par $(1,0,\dots)$ pour imposer $\alpha$ et $\beta$.
 
-### 4. Validation Analytique
 On choisit une solution exacte connue, par exemple $y_{\text{ref}}(x) = \cos(3\pi x/2)$, et on calcule $f(x)$ correspondante.
 **Résultat attendu :** Pour $N=10$, l'erreur $L^\infty = \max |y_{\text{num}} - y_{\text{ref}}|$ doit déjà avoisiner $10^{-12}$. C'est l'effet "spectral" : avec très peu de points, on atteint la précision maximale permise par les nombres flottants. Ceci valide définitivement la construction de $D$ et $D^2$.
 
----
+### 1.10. Synthèse : Pourquoi la Collocation pour les problèmes lineaires et surtout pour les problemes non linéaires ?
 
-## PARTIE II : Méthodologie Numérique
+Le tableau suivant résume les caractéristiques des trois méthodes :
 
-La résolution du problème non linéaire repose sur une double approche : la discrétisation spatiale par collocation spectrale et la linéarisation itérative de l'opérateur.
+| Méthode | Espace de travail | Traitement des non-linéarités | Implémentation |
+|---------|-------------------|-------------------------------|----------------|
+| **Galerkin** | Spectral (coefficients) | Très difficile (convolutions) | Complexe (base adaptée) |
+| **Tau** | Spectral (coefficients) | Difficile (convolutions) | Intermédiaire |
+| **Collocation** | Physique (valeurs nodales) | Trivial (point par point) | Simple et directe |
+
+Il est tres claire donc, pour notre objectif de haute precision, la méthode de collocation s'impose comme le choix optimal : elle combine la précision spectrale des polynômes de Chebyshev avec la simplicité d'évaluation des termes non linéaires dans l'espace physique. Et de plus, elle combine d'autres parts les objectifs recherches des autres methodes spectrales et non-spectrales selon moi.
+Dans la partie suivante,nous allons nous concentrer plus sur la methodologie specifiques et concretes pour les EDO non lineaires dans notre recherche.
+
+## PARTIE II : Méthodologie Numérique Pour les EDO NonLineaires  
+
+La résolution du problème non linéaire repose sur une double approche : la discrétisation spatiale par collocation spectrale(ce que nous avons montrer avec le cas lineaire) et la linéarisation itérative de l'opérateur.
 
 ### 2.1. Discrétisation spatiale et base de Chebyshev
 Le domaine physique $x \in [a, b]$ est projeté sur le domaine spectral $t \in [-1, 1]$. La solution $y(t)$ est approximée par une combinaison linéaire de polynômes de Chebyshev de première espèce $T_k(t)$ :
@@ -130,7 +471,68 @@ $$ \mathcal{J} = D^2 - \text{diag}(-\lambda e^{\mathbf{y}}) = D^2 + \text{diag}(
 
 La convergence de Newton dépend crucialement de $\lambda$. Pour $\lambda < \lambda_{\text{critique}} \approx 3.51$, l'algorithme converge en 5-6 itérations. Pour $\lambda$ proche de la bifurcation, le Jacobien devient presque singulier, et il faut un point de départ très proche de la solution.
 
----
+### 2.5.Polynômes de Chebyshev de première espèce \( T_n(x) \)
+
+#### 2.5.1. Définition trigonométrique
+Tout au long de notre recherche, nous utiliserons les polynomes de Chebychev afin de pouvoir mathematiquement et surtout techniquement donner un sens a nos calculs. Comme on le dit en langage vulgaire, ces polynomes representent pour nous l'ingredient principal de notre recherche.
+
+Pour \( n \in \mathbb{N} \) et \( x \in [-1, 1] \) :
+
+$$ T_n(x) = \cos(n \arccos x) \tag{1} $$
+
+Avec le changement de variable \( \theta = \arccos x \), on a \( x = \cos \theta \) et :
+
+$$ T_n(\cos \theta) = \cos(n\theta), \quad \theta \in [0, \pi] \tag{2} $$
+
+#### 2.5.2 Définition par récurrence
+
+$$ \begin{cases}
+T_0(x) = 1 \\[4pt]
+T_1(x) = x \\[4pt]
+T_{n+1}(x) = 2x\,T_n(x) - T_{n-1}(x), \quad n \ge 1
+\end{cases} \tag{3} $$
+
+#### 2.5.3 Expression explicite
+
+Pour \( x \in \mathbb{R} \) (extension analytique) :
+
+$$ T_n(x) = \frac{1}{2} \left[ \left( x + \sqrt{x^2 - 1} \right)^n + \left( x - \sqrt{x^2 - 1} \right)^n \right] \tag{4} $$
+
+Ou sous forme polynomiale :
+
+$$ T_n(x) = \frac{n}{2} \sum_{k=0}^{\lfloor n/2 \rfloor} (-1)^k \frac{(n-k-1)!}{k! \, (n-2k)!} (2x)^{n-2k} \tag{5} $$
+
+Plus explicitement, les premiers termes :
+
+$$ \begin{aligned}
+T_0(x) &= 1 \\
+T_1(x) &= x \\
+T_2(x) &= 2x^2 - 1 \\
+T_3(x) &= 4x^3 - 3x \\
+T_4(x) &= 8x^4 - 8x^2 + 1 \\
+T_5(x) &= 16x^5 - 20x^3 + 5x
+\end{aligned} \tag{6} $$
+
+#### 2.5.4 Orthogonalité
+
+Sur l'intervalle \([-1, 1]\) avec le poids \( w(x) = \dfrac{1}{\sqrt{1-x^2}} \) :
+
+$$ \int_{-1}^{1} T_m(x) \, T_n(x) \, \frac{dx}{\sqrt{1-x^2}} =
+\begin{cases}
+0, & m \ne n \\[4pt]
+\pi, & m = n = 0 \\[4pt]
+\dfrac{\pi}{2}, & m = n \ge 1
+\end{cases} \tag{7} $$
+
+#### 2.5.5 Points de collocation
+
+**Nœuds (racines)** : les \( n \) racines de \( T_n(x) \) dans \((-1, 1)\) :
+
+$$ x_k = \cos\left( \frac{2k-1}{2n} \pi \right), \quad k = 1, 2, \dots, n \tag{8} $$
+
+**Extrema** : les \( n+1 \) points incluant les bords (grille de Gauss-Lobatto) :
+
+$$ x_k = \cos\left( \frac{k\pi}{n} \right), \quad k = 0, 1, \dots, n \tag{9} $$
 
 ## PARTIE III : Résultats Numériques et Discussion
 
@@ -164,7 +566,6 @@ On collecte les valeurs du résidu sur la grille fine et on trace leur histogram
 ### 3.4. Flexibilité des conditions de Neumann
 L'implémentation des conditions de Neumann ($y'(\pm 1) = \alpha$) via l'injection de la matrice $D$ dans le Jacobien a été validée avec succès. Contrairement aux méthodes classiques qui nécessitent des schémas de points fictifs ("ghost points"), la méthode de Chebyshev traite les dérivées aux bords avec la même précision spectrale que l'intérieur du domaine.
 
----
 
 ## PARTIE IV : Étude Paramétrique et Limites (Valeur Ajoutée)
 
@@ -173,7 +574,7 @@ On étudie l'équation de Bratu en fonction de $\lambda$.
 - Pour $\lambda$ petit ($\lambda=1$), convergence en 4 itérations de Newton, indépendamment de la qualité de l'estimation initiale.
 - À l'approche de la limite critique ($\lambda=3.5$), le nombre d'itérations augmente et le bassin de convergence se rétrécit. La matrice Jacobienne frôle la singularité, illustrant la transition physique vers la non-unicité des solutions (bifurcation point-selle).
 
-### 2. Sobriété Numérique
+### 2. Precision Numérique
 Le bilan final est sans appel. Pour des problèmes lisses sur géométries simples, la collocation de Chebyshev avec Newton-Kantorovich atteint la **précision maximale avec une complexité minimale**. Une équation type Bratu se résout en quelques millisecondes avec $N=20$, là où les différences finies demanderaient un maillage de 10 000 points et un algorithme de continuation pour approcher la même précision.
 **Limite :** Pour $N > 60$, le conditionnement de $D$ (en $O(N^2)$) et de $D^2$ (en $O(N^4)$) dégrade la précision. La méthode spectrale globale trouve alors sa frontière naturelle d'utilisation en précision flottante double.
 
@@ -190,9 +591,9 @@ Le bilan final est sans appel. Pour des problèmes lisses sur géométries simpl
 
 
 
-# les codes pour le moment avec Bratu Negatif:
+# les codes pour le moment:
 
-# 1-Equation lineaire simple
+# 1-Equation lineaire simple: y'' + y = 0
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -246,7 +647,7 @@ plt.grid(True)
 plt.title("Решение ОДУ 2-го порядка методом коллокации")
 plt.show()
 
-# 2- Montrer les matrices D
+# 2- Montrer les matrices D 
 
 def cheb_nodes(N):
     """Генерация узлов Чебышева-Гаусса-Лобатто."""
@@ -298,7 +699,7 @@ y = np.linalg.solve(L, f)
 print("X nodes:", x[:5])
 print("Y values:", y[:5])
 
-# 3-Nonlineaire equation differentielle simple
+# 3-Nonlineaire equation differentielle simple: y'' - y^2 + x^4 - 2 = 0
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -327,7 +728,7 @@ print("-" * 35)
 
 # 3. Boucle de Newton
 for i in range(15):
-    # Équation corrigée : y'' - y^2 + x^4 - 2 = 0
+    # Équation  : y'' - y^2 + x^4 - 2 = 0
     F = D2 @ y - y**2 + x**4 - 2
     
     # Jacobienne correspondante : D^2 - 2*y
@@ -424,7 +825,7 @@ def solve_nonlinear_ode(N, lam=3.6, tol=1e-12, max_iter=15):
 
 # --- Exécution ---
 N_nodes = 70
-x_sol, y_sol = solve_nonlinear_ode(N_nodes, lam=-3)
+x_sol, y_sol = solve_nonlinear_ode(N_nodes, lam=0.8)
 
 plt.plot(x_sol, y_sol, 'ro-', label='Bratu (Corrected Sign)')
 plt.grid(True)
@@ -484,64 +885,7 @@ err = solve_bratu_neumann_final(20, lam=1.0)
 print(f"\nErreur finale : {err:.2e}")
 
 #pour les comparaison
-# 1-convergence Pendule
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-def cheb(N):
-    x = np.cos(np.pi * np.arange(N + 1) / N)
-    c = np.ones(N + 1); c[0], c[N] = 2.0, 2.0
-    c = c * (-1.0)**np.arange(N + 1)
-    X = np.tile(x, (N + 1, 1))
-    dX = X - X.T
-    D = np.outer(c, 1.0/c) / (dX + np.eye(N + 1))
-    D = D - np.diag(np.sum(D, axis=1))
-    return D, x
-
-def solve_neumann(N):
-    D, x = cheb(N)
-    D2 = D @ D
-    
-    # Solution exacte choisie : y = cos(pi*x) => y'(-1)=y'(1)=0
-    y_exact = np.cos(np.pi * x)
-    # Terme source correspondant : f = y'' + sin(y)
-    f = -np.pi**2 * np.cos(np.pi * x) + np.sin(np.cos(np.pi * x))
-    
-    y = np.zeros(N + 1) # Estimation initiale
-    
-    for _ in range(10):
-        F = D2 @ y + np.sin(y) - f
-        J = D2 + np.diag(np.cos(y))
-        
-        # --- CONDITIONS DE NEUMANN : y'(-1)=0 et y'(1)=0 ---
-        # On utilise la matrice D pour imposer la dérivée nulle aux bords
-        # y'(1) est à l'indice 0, y'(-1) est à l'indice N
-        F[0] = (D @ y)[0] - 0 
-        F[N] = (D @ y)[N] - 0
-        
-        J[0, :] = D[0, :]  # La ligne 0 de J devient l'opérateur dérivée
-        J[N, :] = D[N, :]  # La ligne N de J devient l'opérateur dérivée
-        
-        dy = np.linalg.solve(J, -F)
-        y += dy
-        if np.linalg.norm(dy, np.inf) < 1e-14: break
-        
-    return np.linalg.norm(y - y_exact, np.inf)
-
-# --- Test de Convergence ---
-N_values = np.arange(4, 30, 2)
-errors = [solve_neumann(n) for n in N_values]
-
-plt.figure(figsize=(8, 5))
-plt.semilogy(N_values, errors, 'bo-', lw=2)
-plt.title("Convergence Spectrale (Conditions de Neumann)")
-plt.xlabel("Nombre de nœuds (N)")
-plt.ylabel("Erreur maximale (L-inf)")
-plt.grid(True, which="both", ls="-")
-plt.show()
-
-# 2-convergence Bratu
+# 1-convergence Bratu
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -604,7 +948,7 @@ plt.axhline(1e-15, color='black', ls=':', label='Précision Machine')
 plt.legend()
 plt.show()
 
-# 3-convergence fini et spectrale
+# 2-convergence fini et Bratu-spectrale
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -678,188 +1022,3 @@ plt.grid(True, which="both", ls="-", alpha=0.5)
 plt.legend()
 plt.show()
 
-
-# 4-convergence fini et cheb pendule
-
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.linalg import solve
-
-def cheb(N):
-    x = np.cos(np.pi * np.arange(N + 1) / N)
-    c = np.ones(N + 1); c[0], c[N] = 2.0, 2.0
-    c = c * (-1.0)**np.arange(N + 1)
-    X = np.tile(x, (N + 1, 1))
-    dX = X - X.T
-    D = np.outer(c, 1.0/c) / (dX + np.eye(N + 1))
-    D = D - np.diag(np.sum(D, axis=1))
-    return D, x
-
-def solve_pendule_cheb(N):
-    D, x = cheb(N); D2 = D @ D
-    y_exact = np.cos(np.pi * x) # Solution de test
-    f = -np.pi**2 * np.cos(np.pi * x) + np.sin(np.cos(np.pi * x))
-    y = np.zeros(N + 1)
-    for _ in range(10):
-        F = D2 @ y + np.sin(y) - f
-        J = D2 + np.diag(np.cos(y))
-        F[0] = (D @ y)[0]; F[N] = (D @ y)[N]
-        J[0, :], J[N, :] = D[0, :], D[N, :]
-        dy = solve(J, -F); y += dy
-        if np.linalg.norm(dy, np.inf) < 1e-14: break
-    return np.linalg.norm(y - y_exact, np.inf)
-
-def solve_pendule_fd(N):
-    x = np.linspace(-1, 1, N + 1); h = 2.0 / N
-    y_exact = np.cos(np.pi * x)
-    f = -np.pi**2 * np.cos(np.pi * x) + np.sin(np.cos(np.pi * x))
-    y = np.zeros(N + 1)
-    for _ in range(10):
-        main = -2 * np.ones(N + 1) / h**2
-        off = np.ones(N) / h**2
-        D2 = np.diag(main) + np.diag(off, 1) + np.diag(off, -1)
-        F = D2 @ y + np.sin(y) - f
-        J = D2 + np.diag(np.cos(y))
-        # Neumann O2
-        J[0, 0:2], J[N, N-1:N+1] = [-1/h, 1/h], [-1/h, 1/h]
-        F[0], F[N] = (y[1]-y[0])/h, (y[N]-y[N-1])/h
-        dy = solve(J, -F); y += dy
-        if np.linalg.norm(dy, np.inf) < 1e-10: break
-    return np.linalg.norm(y - y_exact, np.inf)
-
-N_range = np.arange(8, 64, 4)
-err_cheb = [solve_pendule_cheb(n) for n in N_range]
-err_fd = [solve_pendule_fd(n) for n in N_range]
-
-plt.semilogy(N_range, err_cheb, 'ro-', label='Chebyshev (Spectral)')
-plt.semilogy(N_range, err_fd, 'bs--', label='Différences Finies (O2)')
-plt.title("Convergence : Pendule avec Neumann")
-plt.xlabel("Nombre de points (N)"); plt.ylabel("Erreur L-inf")
-plt.legend(); plt.grid(True); plt.show()
-
-# 3-Pour afficher les matrices
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.linalg import solve
-
-def print_matrix_info(name, mat):
-    print(f"\n--- {name} (shape: {mat.shape}) ---")
-    # Affiche un extrait 5x5 pour la lisibilité
-    print(np.round(mat[:5, :5], 3))
-    print("...")
-
-# 1. CONSTRUCTION DE LA BASE (MATRICE D)
-N = 10  # Taille réduite pour l'affichage
-n = np.arange(N + 1)
-x = np.cos(np.pi * n / N)
-c = np.ones(N + 1); c[0] = 2.0; c[N] = 2.0
-c = c * (-1.0)**n
-X = np.tile(x, (N + 1, 1))
-dX = X - X.T
-D = np.outer(c, 1.0/c) / (dX + np.eye(N + 1))
-D -= np.diag(D.sum(axis=1))
-
-print_matrix_info("MATRICE DE DIFFÉRENCIATION CHEBYSHEV (D)", D)
-
-# --- EXEMPLE A : PROBLÈME LINÉAIRE (Oscillateur y'' + 16y = 0) ---
-D2 = D @ D
-L_lin = D2 + 16 * np.eye(N+1)
-
-# Application des BCs (Dirichlet) sur la matrice obtenue
-L_lin_final = L_lin.copy()
-L_lin_final[0, :] = 0; L_lin_final[0, 0] = 1   # y(1) = val
-L_lin_final[N, :] = 0; L_lin_final[N, N] = 1   # y(-1) = val
-
-print_matrix_info("OPÉRATEUR LINÉAIRE FINAL (L_lin + BCs)", L_lin_final)
-
-# --- EXEMPLE B : NON-LINÉAIRE (Jacobien de Bratu : y'' + exp(y) = 0) ---
-y_guess = np.zeros(N+1) # État actuel
-exp_y = np.exp(y_guess)
-# Jacobien J = D^2 + diag(exp(y))
-J_bratu = D2 + np.diag(exp_y)
-
-# Application BCs Neumann (y'(1)=0) sur le Jacobien
-J_bratu_final = J_bratu.copy()
-J_bratu_final[0, :] = D[0, :] # Condition y'(1)
-J_bratu_final[N, :] = 0; J_bratu_final[N, N] = 1 # y(-1)
-
-print_matrix_info("JACOBIEN BRATU FINAL (J + Neumann BCs)", J_bratu_final)
-
-# --- VISUALISATION DE LA STRUCTURE (SPARSITY) ---
-fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-axs[0].spy(D, markersize=5); axs[0].set_title("Structure D")
-axs[1].spy(D2, markersize=5); axs[1].set_title("Structure D^2")
-axs[2].spy(J_bratu_final, markersize=5); axs[2].set_title("Structure Jacobien Final")
-plt.suptitle("Visualisation de la densité des matrices obtenues")
-plt.show()
-
-
-# 4-Bratu en cours
-# 4-Nonlineaire: Eqution de bratu
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-def cheb(N):
-    """Génère la matrice de différenciation D et les points x de Chebyshev."""
-    if N == 0: return np.array([1.0]), np.array([1.0])
-    x = np.cos(np.pi * np.arange(N + 1) / N)
-    c = np.ones(N + 1)
-    c[0], c[N] = 2.0, 2.0
-    c = c * (-1.0)**np.arange(N + 1)
-    X = np.tile(x, (N + 1, 1))
-    dX = X - X.T
-    D = np.outer(c, 1.0/c) / (dX + np.eye(N + 1))
-    D = D - np.diag(np.sum(D, axis=1))
-    return D, x
-
-def solve_nonlinear_ode(N, lam=3.61, tol=1e-12, max_iter=50):
-    # 1. Initialisation de la grille et des matrices
-    D, x = cheb(N)
-    D2 = D @ D
-    
-    # 2. Estimation initiale (proche de la solution physique négative)
-    y = -0.1 * (1 - x**2)
-    
-    print(f"Itération | Résidu (Norme)")
-    print("-" * 25)
-
-    for i in range(max_iter):
-        # --- Définition de l'opérateur F(y) = y'' + lam*exp(y) ---
-        F = D2 @ y + lam * np.exp(y)
-        
-        # --- Définition de la Jacobienne J = D^2 + lam*diag(exp(y)) ---
-        J = D2 + lam * np.diag(np.exp(y))
-        
-        # --- Application des Conditions aux Limites ---
-        # Correction des signes pour la cohérence Newton : F = y - cible
-        F[0] = y[0] - 0
-        F[N] = y[N] - 0
-        
-        J[0, :] = 0; J[0, 0] = 1.0
-        J[N, :] = 0; J[N, N] = 1.0
-        
-        # 3. Calcul de la correction de Newton
-        dy = np.linalg.solve(J, -F)
-        y += dy
-        
-        # 4. Vérification de la convergence
-        residu = np.linalg.norm(dy, np.inf)
-        print(f"{i+1:9} | {residu:.2e}")
-        
-        if residu < tol:
-            print("Convergence atteinte.")
-            break
-    else:
-        print("Attention : Newton n'a pas convergé.")
-        
-    return x, y
-
-# --- Exécution ---
-N_nodes = 70
-x_sol, y_sol = solve_nonlinear_ode(N_nodes, lam=3)
-
-plt.plot(x_sol, y_sol, 'ro-', label='Bratu ')
-plt.grid(True)
-plt.legend()
-plt.show()
