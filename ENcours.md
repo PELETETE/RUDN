@@ -534,6 +534,134 @@ $$ x_k = \cos\left( \frac{2k-1}{2n} \pi \right), \quad k = 1, 2, \dots, n \tag{8
 
 $$ x_k = \cos\left( \frac{k\pi}{n} \right), \quad k = 0, 1, \dots, n \tag{9} $$
 
+
+
+
+
+
+
+
+
+###############################################################################
+## PARTIE III : Flexibilité et Conditions aux Limites
+
+L'efficacité d'un solveur spectral ne se mesure pas seulement à sa précision, mais à sa capacité à intégrer des contraintes physiques variées sans perte de stabilité. La méthode de collocation de Chebyshev, couplée à l'algorithme de Newton-Kantorovich, offre une flexibilité remarquable dans le traitement des conditions aux limites (CL), qu'elles soient de type Dirichlet, Neumann ou mixtes.
+
+### 3.1. Algorithme d'Imposition des CL : La technique de "Bordering"
+
+L'opérateur de différenciation brut $D^2$ est structurellement singulier car il ne contient aucune information sur les frontières du domaine. En effet, la dérivation abaisse le degré polynomial et détruit l'unicité de la représentation : une constante additive devient arbitraire. Pour lever cette singularité et injecter les conditions physiques aux bords, nous utilisons la technique de **Bordering** (ou substitution directe).
+
+Le principe consiste à remplacer les équations algébriques aux nœuds limites ($j=0$ et $j=N$) par les équations exprimant les conditions aux limites, plutôt que de les ajouter au système. Cette approche préserve le caractère carré du système linéaire tout en imposant exactement les contraintes.
+
+Dans le cadre de l'algorithme de Newton-Kantorovich, cette substitution s'applique simultanément à la matrice Jacobienne $\mathcal{J}$ et au vecteur résidu $\mathbf{F}$. Pour chaque nœud frontière concerné, on effectue les opérations suivantes :
+
+- **Ligne du Jacobien** : La ligne correspondante de $\mathcal{J}$ est intégralement mise à zéro, puis l'élément diagonal est fixé à $1$. Ceci est équivalent à remplacer l'équation de collocation par l'identité $\delta y_j = \text{correction}$.
+- **Entrée du résidu** : L'entrée correspondante de $\mathbf{F}$ est remplacée par l'écart entre la valeur nodale courante et la valeur imposée, soit $y_j^{(k)} - \alpha$ pour Dirichlet, ou $(D\mathbf{y}^{(k)})_j - \gamma$ pour Neumann.
+
+Cette technique présente l'avantage décisif de ne pas augmenter la taille du système et de s'intégrer naturellement dans la factorisation LU utilisée pour résoudre le système linéaire à chaque itération de Newton.
+
+### 3.2. Implémentation des Conditions de Neumann : Au-delà de Dirichlet
+
+L'un des atouts majeurs de la collocation de Chebyshev réside dans son traitement élégant des conditions aux limites de Neumann (dérivée imposée). Contrairement aux méthodes de différences finies qui nécessitent l'introduction de points fictifs ("ghost points") et des schémas décentrés entraînant une perte de précision, la méthode spectrale utilise directement la matrice de différenciation $D$.
+
+Pour imposer une condition de Neumann $y'(x_0) = \gamma$ au bord gauche ($j=0$), la procédure est la suivante :
+
+1.  **Substitution du Jacobien** : La ligne $0$ de $\mathcal{J}$ est remplacée par la ligne $0$ de la matrice $D$. Le système impose ainsi que la correction $\delta \mathbf{y}$ satisfasse une équation de flux plutôt qu'une identité.
+2.  **Mise à jour du résidu** : L'entrée correspondante devient $\mathbf{F}_0 = (D\mathbf{y}^{(k)})_0 - \gamma$, représentant l'écart entre la dérivée numérique actuelle et la valeur cible.
+
+L'équation aux limites s'écrit alors explicitement :
+
+$$ \sum_{j=0}^{N} D_{0,j} \, \delta y_j = \gamma - (D\mathbf{y}^{(k)})_0 \tag{59} $$
+
+Cette approche préserve intégralement la précision spectrale sur les bords du domaine. Là où les différences finies perdent typiquement un ou deux ordres de précision en passant de Dirichlet à Neumann (à cause du décentrage), la méthode de Chebyshev traite tous les nœuds, frontaliers comme intérieurs, avec le même opérateur global de haute fidélité.
+
+### 3.3. Le Cas de Bratu : Un "Crash-Test" Numérique
+
+Le problème de Bratu, défini par l'équation différentielle :
+
+$$ y'' + \lambda e^y = 0, \quad y(\pm 1) = 0 \tag{60} $$
+
+constitue un banc d'essai extrêmement exigeant pour tout solveur non linéaire. Son Jacobien s'écrit :
+
+$$ \mathcal{J} = D^2 + \lambda \, \text{diag}(e^{\mathbf{y}}) \tag{61} $$
+
+Ce Jacobien présente une particularité redoutable : la non-linéarité exponentielle $\lambda e^y$ peut conduire à des valeurs extrêmement élevées si l'itéré courant s'éloigne de la solution. La matrice devient alors mal conditionnée, et l'algorithme de Newton peut diverger brutalement (phénomène d'overshoot).
+
+Ce cas constitue un véritable "crash-test" pour trois raisons :
+
+1.  **Sensibilité au paramètre $\lambda$** : Lorsque $\lambda$ approche de la valeur critique de bifurcation $\lambda_c \approx 3.51$, le Jacobien frôle la singularité. La solution passe d'un régime unique et stable à une zone de non-unicité (deux solutions coexistent), rendant la convergence de Newton extrêmement sensible au point de départ.
+2.  **Raideur numérique** : La composante exponentielle amplifie toute oscillation parasite de la solution intermédiaire, exigeant une discrétisation capable de résoudre les fines couches limites qui se forment près des bords.
+3.  **Validation de la robustesse** : Réussir à faire converger l'algorithme pour $\lambda = 3.0$ ou $3.5$ démontre non seulement la précision de la discrétisation spatiale, mais aussi la qualité de la stratégie de linéarisation.
+
+### 3.4. Stratégie d'Initialisation (Initial Guess)
+
+La convergence quadratique de la méthode de Newton-Kantorovich, aussi spectaculaire soit-elle, possède une contrepartie fondamentale : elle est **strictement locale**. Le bassin d'attraction autour de la solution peut être étroit, en particulier pour les problèmes fortement non linéaires.
+
+Le choix de l'estimation initiale $\mathbf{y}^{(0)}$ est donc une étape cruciale de l'algorithme. Plusieurs stratégies sont possibles :
+
+- **Initialisation nulle ou constante** ($\mathbf{y}^{(0)} = 0$) : Simple et souvent suffisante pour les problèmes faiblement non linéaires ou lorsque $\lambda$ est petit devant $\lambda_c$. Elle a l'avantage de ne pas introduire de biais directionnel.
+- **Approximation linéaire** : Pour les conditions de Dirichlet non homogènes $y(-1)=\alpha$, $y(1)=\beta$, on initialise avec la droite $y^{(0)}(x) = \frac{\alpha+\beta}{2} + \frac{\beta-\alpha}{2}x$, qui satisfait déjà les conditions aux limites. Ce choix réduit le résidu initial et place l'itéré dans une zone physiquement plausible.
+- **Continuation paramétrique** : Pour les problèmes raides (Bratu avec $\lambda$ proche de $\lambda_c$), on peut utiliser la solution convergée d'un paramètre $\lambda$ plus faible comme point de départ pour un $\lambda$ légèrement supérieur.
+
+Une initialisation inadéquate peut avoir des conséquences désastreuses : projection vers une branche instable, oscillation infinie du résidu, ou divergence vers des valeurs numériquement infinies. L'analyse du bassin de convergence fait partie intégrante de la validation du solveur.
+
+---
+
+## PARTIE IV : Analyse de Fiabilité et Métriques de Recherche
+
+Cette section quantifie rigoureusement la supériorité de l'approche spectrale sur les méthodes d'ordre fini, et définit les outils de validation nécessaires pour certifier la qualité d'une solution numérique.
+
+### 4.1. Loi de Puissance vs Convergence Spectrale
+
+Le graphique comparatif superposant les erreurs des différences finies et de la méthode de Chebyshev révèle une différence de nature, et non de degré, dans le comportement de convergence.
+
+- **Méthodes classiques (Différences Finies, Éléments Finis)** : Elles suivent une **loi de puissance** de la forme $\epsilon \sim C \cdot N^{-k}$, où $k$ est l'ordre de la méthode. En échelle log-log, ce comportement se traduit par une droite de pente $-k$. Doubler le nombre de points $N$ divise l'erreur par un facteur constant $2^k$ (par exemple, par 4 pour une méthode d'ordre 2). La convergence est dite **algébrique**.
+
+- **Méthode spectrale de Chebyshev** : Elle affiche une **convergence exponentielle** (ou spectrale) de la forme $\epsilon \sim C \cdot e^{-\alpha N}$. En échelle semi-logarithmique (log de l'erreur en fonction de $N$), ce comportement se manifeste par une droite de pente négative, dont l'inclinaison dépend de la régularité de la solution. Pour une fonction $C^\infty$, la décroissance est plus rapide que toute puissance de $N^{-1}$.
+
+La conséquence pratique est spectaculaire : lorsque $N$ est doublé, l'erreur de la méthode spectrale n'est pas divisée par 4 ou 16, mais chute de plusieurs ordres de grandeur, jusqu'à saturation à la précision machine. Cette propriété fait des méthodes spectrales les candidates idéales pour les problèmes exigeant une très haute fidélité avec un minimum de degrés de liberté.
+
+### 4.2. Métrique de Précision : La Norme $L^\infty$
+
+Pour garantir la fiabilité du solveur et certifier la qualité de la solution obtenue, nous privilégions systématiquement la **norme infinie** (norme du maximum) comme métrique d'erreur :
+
+$$ \| \epsilon \|_\infty = \max_{j} \left| y_{\text{num}}(x_j) - y_{\text{exact}}(x_j) \right| \tag{62} $$
+
+Ce choix est délibéré et répond à une exigence de contrôle absolu. Contrairement à la norme $L^2$ (moyenne quadratique), qui peut lisser et masquer des erreurs locales importantes en les diluant sur l'ensemble du domaine, la norme $L^\infty$ est sans concession : elle garantit qu'**aucun point** du domaine de calcul ne s'écarte de la solution de référence au-delà de la tolérance spécifiée.
+
+Cette propriété est cruciale dans les applications physiques où un dépassement local, même ponctuel, peut correspondre à une violation de principe (température négative, concentration supérieure à 1, etc.). La norme $L^\infty$ fournit ainsi une borne déterministe supérieure, éliminant tout risque d'erreur locale masquée par un bon comportement moyen.
+
+### 4.3. Analyse du Résidu Inter-nœuds : Le Certificat de Qualité Spectrale
+
+Une validation numérique rigoureuse ne peut se contenter de vérifier l'équation aux seuls nœuds de collocation, où l'erreur est par construction rendue nulle (ou quasi nulle) par la résolution du système. La véritable signature de qualité d'une approximation spectrale réside dans son comportement **entre** les nœuds de calcul.
+
+La procédure de validation inter-nœuds se déroule en deux étapes :
+
+1.  **Interpolation sur une grille fine** : La solution nodale $\mathbf{y}$ est interpolée sur une grille auxiliaire contenant typiquement 10 fois plus de points que la grille de collocation (soit $10N$ points), en utilisant l'interpolation barycentrique de Chebyshev.
+2.  **Évaluation du résidu physique** : Sur cette grille fine, on calcule le résidu de l'équation différentielle :
+    $$ \mathcal{R}(\tilde{x}_i) = y_{\text{interp}}''(\tilde{x}_i) + f(\tilde{x}_i, y_{\text{interp}}, y_{\text{interp}}') \tag{63} $$
+    où les dérivées $y_{\text{interp}}'$ et $y_{\text{interp}}''$ sont également obtenues par interpolation barycentrique des dérivées nodales.
+
+Un résidu inter-nœuds uniformément faible (de l'ordre de $10^{-12}$ à $10^{-14}$) démontre que le polynôme de Chebyshev sous-jacent satisfait l'équation différentielle **partout** dans le domaine continu, et pas uniquement aux points de calcul. C'est la preuve que l'information physique a été intégralement capturée par la représentation spectrale.
+
+### 4.4. Comportement Statistique et Test de "Bruit Blanc"
+
+L'analyse ultime de la fiabilité du solveur porte sur la structure statistique de l'erreur résiduelle. Une fois le processus de Newton convergé et la solution interpolée, nous examinons la distribution des valeurs du résidu $\mathcal{R}(\tilde{x}_i)$ sur la grille fine.
+
+Le critère d'optimalité est le suivant :
+
+- **Solveur optimal** : Si toute l'information déterministe (la "physique") a été extraite par le schéma numérique, le résidu ne doit présenter **aucune structure reconnaissable**. Il doit se comporter comme un **bruit blanc** suivant une **loi normale centrée en zéro**. L'histogramme des résidus doit épouser une gaussienne de moyenne nulle, et le test de Kolmogorov-Smirnov ne doit pas rejeter l'hypothèse de normalité.
+
+- **Solveur sous-optimal** : Une erreur résiduelle structurée (par exemple, une forme de cloche, une oscillation régulière de type sinusoïdal, ou une modulation spatiale cohérente) est un signal d'alarme. Une telle structure indique un **biais systématique** dans l'approximation : le polynôme interpolant ne parvient pas à représenter certaines composantes fréquentielles de la solution exacte, ou le processus de Newton n'a pas atteint le véritable zéro du résidu. Il reste alors de "la physique" non capturée dans le résidu, ce qui invalide la solution comme représentation fidèle du modèle continu.
+
+Ce test statistique est particulièrement puissant car il ne nécessite pas de solution exacte de référence : il s'agit d'une procédure de validation interne, applicable même lorsque la solution analytique est inconnue.
+
+
+###############################################################################
+
+
+
+
 ## PARTIE III : Résultats Numériques et Discussion
 
 Cette section présente les performances du solveur sur deux bancs d'essai : le cas linéaire pour la validation de précision et le problème de Bratu pour la robustesse non linéaire.
@@ -641,10 +769,6 @@ L'ensemble des figures forme une démonstration progressive et complète de la p
 | 0_7 | $y'' + \lambda e^y = f(x)$ | Non linéaire exponentielle | Neumann | Supériorité écrasante sur les différences finies |
 
 **Message final :** Les résultats confirment que la méthode de collocation de Chebyshev, couplée à l'algorithme de Newton-Kantorovich, constitue une stratégie numérique optimale pour les équations différentielles non linéaires du second ordre. La convergence exponentielle permet d'atteindre la précision machine avec seulement 20 à 30 points, là où les différences finies plafonnent à une erreur de $10^{-1}$ même avec plusieurs centaines de nœuds. La flexibilité dans l'imposition des conditions aux limites (Dirichlet et Neumann) et la simplicité du traitement des non-linéarités par évaluation point par point dans l'espace physique font de cette approche un outil à la fois puissant et élégant pour la modélisation de processus physiques complexes.
-
-
-
-
 
 
 
